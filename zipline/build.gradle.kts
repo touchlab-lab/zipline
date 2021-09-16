@@ -49,9 +49,13 @@ val copyTestingJs = tasks.register<Copy>("copyTestingJs") {
 kotlin {
   android()
   jvm()
+
   js {
     nodejs()
   }
+
+  linuxX64("native")
+  // TODO all the other native targets once native is working
 
   sourceSets {
     val commonMain by getting {
@@ -97,6 +101,27 @@ kotlin {
         implementation(Dependencies.kotlinxCoroutinesTest)
         implementation(project(":zipline:testing"))
       }
+    }
+
+    val nativeMain by getting {
+      dependsOn(engineMain)
+    }
+    val nativeTest by getting {
+      dependsOn(engineTest)
+    }
+
+    targets.withType<org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget> {
+      val main by compilations.getting
+//      main.defaultSourceSet.dependsOn(nativeMain)
+      main.cinterops {
+        create("quickjs") {
+          header(file("native/quickjs/quickjs.h"))
+          packageName("app.cash.zipline.quickjs")
+        }
+      }
+
+      val test by compilations.getting
+//      test.defaultSourceSet.dependsOn(nativeTest)
     }
   }
 }

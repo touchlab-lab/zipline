@@ -1,0 +1,19 @@
+---
+
+// Exposing non-constant macros per https://kotlinlang.org/docs/native-c-interop.html#macros
+
+static inline int32_t JsValueGetNormTag(JSValue v) {
+  return JS_VALUE_GET_NORM_TAG(v);
+}
+
+static inline int32_t JsValueGetInt(JSValue v) {
+  return JS_VALUE_GET_INT(v);
+}
+
+static inline int32_t JsValueGetBool(JSValue v) {
+  return JS_VALUE_GET_BOOL(v);
+}
+
+static inline double JsValueGetFloat64(JSValue v) {
+  return JS_VALUE_GET_FLOAT64(v);
+}

@@ -27,26 +27,11 @@ class QuickJsJvmTest {
     quickjs.close()
   }
 
-  @Test fun helloWorld() {
-    val hello = quickjs.evaluate("'hello, world!'.toUpperCase();") as String?
-    assertEquals("HELLO, WORLD!", hello)
-  }
-
   @Test fun exceptionsInScriptThrowInJava() {
     val t = assertThrows<QuickJsException> {
       quickjs.evaluate("nope();")
     }
     assertEquals("'nope' is not defined", t.message)
-  }
-
-  @Test fun returnTypes() {
-    assertEquals("test", quickjs.evaluate("\"test\";"))
-    assertEquals(true, quickjs.evaluate("true;"))
-    assertEquals(false, quickjs.evaluate("false;"))
-    assertEquals(1, quickjs.evaluate("1;"))
-    assertEquals(1.123, quickjs.evaluate("1.123;"))
-    assertNull(quickjs.evaluate("undefined;"))
-    assertNull(quickjs.evaluate("null;"))
   }
 
   @Test fun exceptionsInScriptIncludeStackTrace() {
