@@ -15,15 +15,15 @@
  */
 package app.cash.zipline
 
+import kotlin.test.AfterTest
+import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
-import org.junit.After
-import org.junit.Test
 
 class TuningApisTest {
   private val quickjs = QuickJs.create()
 
-  @After fun tearDown() {
+  @AfterTest fun tearDown() {
     quickjs.close()
   }
 
@@ -71,7 +71,7 @@ class TuningApisTest {
     val diff = diffMemoryUsage {
       quickjs.evaluate(
         """
-        globalThis.hypotenuse = function(a, b) { 
+        globalThis.hypotenuse = function(a, b) {
           return Math.sqrt((a * a) + (b * b));
         };
         """

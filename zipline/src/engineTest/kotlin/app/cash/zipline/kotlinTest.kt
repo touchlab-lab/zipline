@@ -13,19 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package app.cash.zipline.internal
+package app.cash.zipline
 
-import app.cash.zipline.Zipline
-import java.util.logging.Logger
-
-internal actual object HostConsole : Console {
-  private val logger = Logger.getLogger(Zipline::class.qualifiedName)
-
-  override fun log(level: String, message: String) {
-    when (level) {
-      "warn" -> logger.warning(message)
-      "error" -> logger.severe(message)
-      else -> logger.info(message)
+inline fun <reified T : Throwable> assertThrows(body: () -> Unit): T {
+  try {
+    body()
+  } catch (t: Throwable) {
+    if (t is T) {
+      return t
     }
+    throw t
   }
+  throw AssertionError(
+    "Expected body to fail with ${T::class.simpleName!!} but completed successfully")
 }
