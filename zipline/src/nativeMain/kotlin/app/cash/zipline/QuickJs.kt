@@ -61,8 +61,10 @@ import kotlinx.cinterop.COpaquePointer
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.CValue
 import kotlinx.cinterop.CValuesRef
+import kotlinx.cinterop.StableRef
 import kotlinx.cinterop.UByteVar
 import kotlinx.cinterop.alloc
+import kotlinx.cinterop.asStableRef
 import kotlinx.cinterop.convert
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
@@ -73,13 +75,9 @@ import kotlinx.cinterop.toKStringFromUtf8
 import kotlinx.cinterop.value
 import platform.posix.size_tVar
 
-fun jsInterruptHandlerGlobal(runtime: CPointer<JSRuntime>?, opaque: COpaquePointer?): Int{
-  return GlobalInterruptHandlerReference.quickJs!!.jsInterruptHandler(runtime, opaque)
-}
-
-@ThreadLocal
-private object GlobalInterruptHandlerReference {
-  var quickJs:QuickJs? = null
+internal fun jsInterruptHandlerGlobal(runtime: CPointer<JSRuntime>?, opaque: COpaquePointer?): Int{
+  val quickJs = opaque!!.asStableRef<QuickJs>().get()
+  return quickJs.jsInterruptHandler(runtime, opaque)
 }
 
 actual class QuickJs private constructor(
@@ -102,10 +100,10 @@ actual class QuickJs private constructor(
   }
 
   private val jsInterruptHandlerCFunction = staticCFunction(::jsInterruptHandlerGlobal)
+  private val thisPtr:StableRef<QuickJs> = StableRef.create(this)
 
   init {
-    GlobalInterruptHandlerReference.quickJs = this
-    JS_SetInterruptHandler(runtime, jsInterruptHandlerCFunction, null)
+    JS_SetInterruptHandler(runtime, jsInterruptHandlerCFunction, thisPtr.asCPointer())
   }
 
   fun jsInterruptHandler(runtime: CPointer<JSRuntime>?, opaque: COpaquePointer?): Int {
@@ -119,7 +117,7 @@ actual class QuickJs private constructor(
       // TODO: propagate the interrupt handler's exceptions through JS.
       true // Halt JS.
     } finally {
-      JS_SetInterruptHandler(runtime, jsInterruptHandlerCFunction, null) // Restore handler.
+      JS_SetInterruptHandler(runtime, jsInterruptHandlerCFunction, thisPtr.asCPointer()) // Restore handler.
     }
 
     return if (result) 1 else 0
@@ -257,6 +255,7 @@ actual class QuickJs private constructor(
   actual fun close() {
     JS_FreeContext(context)
     JS_FreeRuntime(runtime)
+    thisPtr.dispose()
   }
 
   private fun CValue<JSValue>.toKotlinInstanceOrNull(): Any? {
