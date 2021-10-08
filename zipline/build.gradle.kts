@@ -57,7 +57,7 @@ kotlin {
 
 //  iosArm32("native")
 //  macosX64("native")
-//  linuxX64()
+  linuxX64()
   macosX64()
   macosArm64()
   iosX64()
