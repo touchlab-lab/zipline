@@ -22,7 +22,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 class QuickJsInterruptTest {
-  /*private val quickJs = QuickJs.create()
+  private val quickJs = QuickJs.create()
 
   @BeforeTest fun setUp() {
     quickJs.evaluate("""
@@ -84,10 +84,10 @@ class QuickJsInterruptTest {
     assertEquals(4, counter.count) // Still 4.
   }
 
-  *//**
+  /**
    * It's possible an interrupt handler may run JavaScript to query global state before returning.
    * Confirm that such work can't itself be interrupted.
-   *//*
+   */
   @Test fun interruptionAreNotReentrant() {
     var count = 0
     quickJs.interruptHandler = object : InterruptHandler {
@@ -108,5 +108,5 @@ class QuickJsInterruptTest {
       count++
       return false
     }
-  }*/
+  }
 }
