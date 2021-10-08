@@ -9,6 +9,7 @@ import org.jetbrains.dokka.gradle.DokkaTask
 
 buildscript {
   repositories {
+    mavenLocal()
     mavenCentral()
     google()
     gradlePluginPortal()
@@ -20,6 +21,7 @@ buildscript {
     classpath(Dependencies.kotlinGradlePlugin)
     classpath(Dependencies.kotlinSerialization)
     classpath(Dependencies.dokkaGradlePlugin)
+    classpath("co.touchlab:cklib-gradle-plugin:0.1.1")
   }
 }
 

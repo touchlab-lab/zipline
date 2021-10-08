@@ -17,7 +17,6 @@ package app.cash.zipline
 
 import app.cash.zipline.quickjs.JSContext
 import app.cash.zipline.quickjs.JSMemoryUsage
-import app.cash.zipline.quickjs.JSRuntime
 import app.cash.zipline.quickjs.JSValue
 import app.cash.zipline.quickjs.JS_ComputeMemoryUsage
 import app.cash.zipline.quickjs.JS_EVAL_FLAG_COMPILE_ONLY
@@ -56,6 +55,7 @@ import app.cash.zipline.quickjs.JsValueGetFloat64
 import app.cash.zipline.quickjs.JsValueGetInt
 import app.cash.zipline.quickjs.JsValueGetNormTag
 import app.cash.zipline.quickjs.js_free
+import cnames.structs.JSRuntime
 import kotlin.reflect.KClass
 import kotlinx.cinterop.COpaquePointer
 import kotlinx.cinterop.CPointer
@@ -72,6 +72,15 @@ import kotlinx.cinterop.staticCFunction
 import kotlinx.cinterop.toKStringFromUtf8
 import kotlinx.cinterop.value
 import platform.posix.size_tVar
+
+fun jsInterruptHandlerGlobal(runtime: CPointer<JSRuntime>?, opaque: COpaquePointer?): Int{
+  return GlobalInterruptHandlerReference.quickJs!!.jsInterruptHandler(runtime, opaque)
+}
+
+@ThreadLocal
+private object GlobalInterruptHandlerReference {
+  var quickJs:QuickJs? = null
+}
 
 actual class QuickJs private constructor(
   private val runtime: CPointer<JSRuntime>,
@@ -92,12 +101,14 @@ actual class QuickJs private constructor(
       get() = quickJsVersion
   }
 
-  private val jsInterruptHandlerCFunction = staticCFunction(::jsInterruptHandler)
+  private val jsInterruptHandlerCFunction = staticCFunction(::jsInterruptHandlerGlobal)
+
   init {
+    GlobalInterruptHandlerReference.quickJs = this
     JS_SetInterruptHandler(runtime, jsInterruptHandlerCFunction, null)
   }
 
-  private fun jsInterruptHandler(runtime: CPointer<JSRuntime>?, opaque: COpaquePointer?): Int {
+  fun jsInterruptHandler(runtime: CPointer<JSRuntime>?, opaque: COpaquePointer?): Int {
     val interruptHandler = interruptHandler ?: return 0
 
     JS_SetInterruptHandler(runtime, null, null) // Suppress re-enter.

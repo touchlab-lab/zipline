@@ -9,6 +9,7 @@ plugins {
   id("com.android.library")
   id("org.jetbrains.dokka")
   id("com.vanniktech.maven.publish.base")
+  id("co.touchlab.cklib")
 }
 
 abstract class VersionWriterTask : DefaultTask() {
@@ -54,8 +55,23 @@ kotlin {
     nodejs()
   }
 
-  linuxX64("native")
-  // TODO all the other native targets once native is working
+//  iosArm32("native")
+//  macosX64("native")
+//  linuxX64()
+  macosX64()
+  macosArm64()
+  iosX64()
+  iosArm64()
+//  iosArm32()
+  iosSimulatorArm64()
+//  watchosArm32()
+//  watchosArm64()
+//  watchosSimulatorArm64()
+//  watchosX86()
+//  watchosX64()
+  tvosArm64()
+  tvosSimulatorArm64()
+  tvosX64()
 
   sourceSets {
     val commonMain by getting {
@@ -103,27 +119,60 @@ kotlin {
       }
     }
 
-    val nativeMain by getting {
+    val nativeMain by creating {
       dependsOn(engineMain)
     }
-    val nativeTest by getting {
+    val nativeTest by creating {
       dependsOn(engineTest)
     }
 
     targets.withType<org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget> {
       val main by compilations.getting
-//      main.defaultSourceSet.dependsOn(nativeMain)
+      main.defaultSourceSet.dependsOn(nativeMain)
+
+      main.kotlinOptions.freeCompilerArgs +=
+          listOf("-native-library", "${project.buildDir.absolutePath}/bitcode/main/${konanTarget.name}/quickjs.bc")
+
       main.cinterops {
         create("quickjs") {
-          header(file("native/quickjs/quickjs.h"))
+//          header(file("native/quickjs/quickjs.h"))
+          header(file("native/quickjs-native/quickjs.h"))
           packageName("app.cash.zipline.quickjs")
         }
       }
 
       val test by compilations.getting
-//      test.defaultSourceSet.dependsOn(nativeTest)
+      test.defaultSourceSet.dependsOn(nativeTest)
     }
   }
+}
+
+val bitcodeBuildTargets = kotlin.targets.withType<org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget>().map { Pair(it.name, it.konanTarget.name) }
+
+bitcode {
+  create("quickjs", bitcodeBuildTargets.map { it.second }, project.file("native/quickjs"), "main") {
+    language = co.touchlab.cklib.gradle.CompileToBitcode.Language.C
+    includeFiles = listOf("**/*.c")
+    srcDirs = project.files(file("native/quickjs"))
+    compilerArgs.addAll(
+      listOf(
+        "-DKONAN_MI_MALLOC=1",
+        "-DCONFIG_VERSION=\"${quickJsVersion()}\"",
+        "-Wno-unknown-pragmas",
+        "-ftls-model=initial-exec",
+        "-Wno-unused-function",
+        "-Wno-error=atomic-alignment",
+        "-Wno-sign-compare",
+        "-Wno-unused-parameter" /* for windows 32*/
+      )
+    )
+  }
+}
+
+// Have Kotlin compile tasks depend on bitcode compile tasks
+bitcodeBuildTargets.forEach {
+  val targetName = it.first
+  tasks.getByName("compileKotlin${targetName.capitalize()}").dependsOn("${it.second}Quickjs")
 }
 
 android {
@@ -210,7 +259,7 @@ dependencies {
   androidTestImplementation(Dependencies.kotlinxCoroutinesTest)
   androidTestImplementation(project(":zipline:testing"))
 
-  add(PLUGIN_CLASSPATH_CONFIGURATION_NAME, project(":zipline-kotlin-plugin"))
+//  add(PLUGIN_CLASSPATH_CONFIGURATION_NAME, project(":zipline-kotlin-plugin"))
 }
 
 fun quickJsVersion(): String {
