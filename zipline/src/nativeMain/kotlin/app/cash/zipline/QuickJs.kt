@@ -17,11 +17,9 @@ package app.cash.zipline
 
 import app.cash.zipline.quickjs.JSContext
 import app.cash.zipline.quickjs.JSMemoryUsage
-import app.cash.zipline.quickjs.JSValue
 import app.cash.zipline.quickjs.JS_ComputeMemoryUsage
 import app.cash.zipline.quickjs.JS_EVAL_FLAG_COMPILE_ONLY
 import app.cash.zipline.quickjs.JS_Eval
-import app.cash.zipline.quickjs.JS_EvalFunction
 import app.cash.zipline.quickjs.JS_FreeContext
 import app.cash.zipline.quickjs.JS_FreeRuntime
 import app.cash.zipline.quickjs.JS_FreeValue
@@ -31,45 +29,26 @@ import app.cash.zipline.quickjs.JS_IsException
 import app.cash.zipline.quickjs.JS_IsUndefined
 import app.cash.zipline.quickjs.JS_NewContext
 import app.cash.zipline.quickjs.JS_NewRuntime
-import app.cash.zipline.quickjs.JS_READ_OBJ_BYTECODE
-import app.cash.zipline.quickjs.JS_READ_OBJ_REFERENCE
-import app.cash.zipline.quickjs.JS_ReadObject
-import app.cash.zipline.quickjs.JS_ResolveModule
 import app.cash.zipline.quickjs.JS_SetGCThreshold
 import app.cash.zipline.quickjs.JS_SetInterruptHandler
 import app.cash.zipline.quickjs.JS_SetMaxStackSize
 import app.cash.zipline.quickjs.JS_SetMemoryLimit
-import app.cash.zipline.quickjs.JS_TAG_BOOL
-import app.cash.zipline.quickjs.JS_TAG_EXCEPTION
-import app.cash.zipline.quickjs.JS_TAG_FLOAT64
-import app.cash.zipline.quickjs.JS_TAG_INT
-import app.cash.zipline.quickjs.JS_TAG_NULL
-import app.cash.zipline.quickjs.JS_TAG_STRING
-import app.cash.zipline.quickjs.JS_TAG_UNDEFINED
 import app.cash.zipline.quickjs.JS_ToCString
 import app.cash.zipline.quickjs.JS_WRITE_OBJ_BYTECODE
 import app.cash.zipline.quickjs.JS_WRITE_OBJ_REFERENCE
 import app.cash.zipline.quickjs.JS_WriteObject
-import app.cash.zipline.quickjs.JsValueGetBool
-import app.cash.zipline.quickjs.JsValueGetFloat64
-import app.cash.zipline.quickjs.JsValueGetInt
-import app.cash.zipline.quickjs.JsValueGetNormTag
 import app.cash.zipline.quickjs.js_free
 import cnames.structs.JSRuntime
 import kotlin.reflect.KClass
 import kotlinx.cinterop.COpaquePointer
 import kotlinx.cinterop.CPointer
-import kotlinx.cinterop.CValue
-import kotlinx.cinterop.CValuesRef
 import kotlinx.cinterop.StableRef
-import kotlinx.cinterop.UByteVar
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.asStableRef
 import kotlinx.cinterop.convert
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
 import kotlinx.cinterop.readBytes
-import kotlinx.cinterop.refTo
 import kotlinx.cinterop.staticCFunction
 import kotlinx.cinterop.toKStringFromUtf8
 import kotlinx.cinterop.value
@@ -82,7 +61,7 @@ internal fun jsInterruptHandlerGlobal(runtime: CPointer<JSRuntime>?, opaque: COp
 
 actual class QuickJs private constructor(
   private val runtime: CPointer<JSRuntime>,
-  private val context: CPointer<JSContext>
+  internal val context: CPointer<JSContext>
 ) {
   actual companion object {
     actual fun create(): QuickJs {
@@ -183,12 +162,7 @@ actual class QuickJs private constructor(
       JS_SetMaxStackSize(runtime, value.convert())
     }
 
-  actual fun evaluate(script: String, fileName: String): Any? {
-    val evalValue = JS_Eval(context, script, script.length.convert(), fileName, 0)
-    val result = evalValue.toKotlinInstanceOrNull()
-    JS_FreeValue(context, evalValue)
-    return result;
-  }
+  actual fun evaluate(script: String, fileName: String): Any? = evaluatePlatform(script, fileName)
 
   actual operator fun <T : Any> set(name: String, type: KClass<T>, instance: T) {
     throw UnsupportedOperationException()
@@ -227,30 +201,7 @@ actual class QuickJs private constructor(
     return result ?: throwJsException()
   }
 
-  actual fun execute(bytecode: ByteArray): Any? {
-    @Suppress("UNCHECKED_CAST") // ByteVar and UByteVar have the same bit layout.
-    val bytecodeRef = bytecode.refTo(0) as CValuesRef<UByteVar>
-    val obj = JS_ReadObject(context, bytecodeRef, bytecode.size.convert(),
-      JS_READ_OBJ_BYTECODE or JS_READ_OBJ_REFERENCE)
-
-    if (JS_IsException(obj) != 0) {
-      throwJsException()
-    }
-
-    if (JS_ResolveModule(context, obj) != 0) {
-      throw QuickJsException("Failed to resolve JS module")
-    }
-
-    val value = JS_EvalFunction(context, obj)
-    if (JS_IsException(value) != 0) {
-      JS_FreeValue(context, value)
-      throwJsException()
-    }
-
-    val result = value.toKotlinInstanceOrNull()
-    JS_FreeValue(context, value)
-    return result
-  }
+  actual fun execute(bytecode: ByteArray): Any? = executePlatform(bytecode)
 
   actual fun close() {
     JS_FreeContext(context)
@@ -258,19 +209,7 @@ actual class QuickJs private constructor(
     thisPtr.dispose()
   }
 
-  private fun CValue<JSValue>.toKotlinInstanceOrNull(): Any? {
-    return when (JsValueGetNormTag(this)) {
-      JS_TAG_EXCEPTION -> throwJsException()
-      JS_TAG_STRING -> JS_ToCString(context, this)!!.toKStringFromUtf8()
-      JS_TAG_BOOL -> JsValueGetBool(this) != 0
-      JS_TAG_INT -> JsValueGetInt(this)
-      JS_TAG_FLOAT64 -> JsValueGetFloat64(this)
-      JS_TAG_NULL, JS_TAG_UNDEFINED -> null
-      else -> null
-    }
-  }
-
-  private fun throwJsException(): Nothing {
+  internal fun throwJsException(): Nothing {
     val exceptionValue = JS_GetException(context)
 
     val messageValue = JS_GetPropertyStr(context, exceptionValue, "message")
@@ -290,3 +229,7 @@ actual class QuickJs private constructor(
     throw QuickJsException(message) // TODO add stack
   }
 }
+
+internal expect fun QuickJs.executePlatform(bytecode: ByteArray): Any?
+internal expect fun QuickJs.evaluatePlatform(script: String, fileName: String): Any?
+
