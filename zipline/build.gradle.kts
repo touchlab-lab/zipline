@@ -153,7 +153,6 @@ kotlin {
 
       main.cinterops {
         create("quickjs") {
-//          header(file("native/quickjs/quickjs.h"))
           header(file("native/quickjs-native/quickjs.h"))
           packageName("app.cash.zipline.quickjs")
         }
