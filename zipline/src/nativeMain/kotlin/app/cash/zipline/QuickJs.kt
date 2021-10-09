@@ -18,26 +18,14 @@ package app.cash.zipline
 import app.cash.zipline.quickjs.JSContext
 import app.cash.zipline.quickjs.JSMemoryUsage
 import app.cash.zipline.quickjs.JS_ComputeMemoryUsage
-import app.cash.zipline.quickjs.JS_EVAL_FLAG_COMPILE_ONLY
-import app.cash.zipline.quickjs.JS_Eval
 import app.cash.zipline.quickjs.JS_FreeContext
 import app.cash.zipline.quickjs.JS_FreeRuntime
-import app.cash.zipline.quickjs.JS_FreeValue
-import app.cash.zipline.quickjs.JS_GetException
-import app.cash.zipline.quickjs.JS_GetPropertyStr
-import app.cash.zipline.quickjs.JS_IsException
-import app.cash.zipline.quickjs.JS_IsUndefined
 import app.cash.zipline.quickjs.JS_NewContext
 import app.cash.zipline.quickjs.JS_NewRuntime
 import app.cash.zipline.quickjs.JS_SetGCThreshold
 import app.cash.zipline.quickjs.JS_SetInterruptHandler
 import app.cash.zipline.quickjs.JS_SetMaxStackSize
 import app.cash.zipline.quickjs.JS_SetMemoryLimit
-import app.cash.zipline.quickjs.JS_ToCString
-import app.cash.zipline.quickjs.JS_WRITE_OBJ_BYTECODE
-import app.cash.zipline.quickjs.JS_WRITE_OBJ_REFERENCE
-import app.cash.zipline.quickjs.JS_WriteObject
-import app.cash.zipline.quickjs.js_free
 import cnames.structs.JSRuntime
 import kotlin.reflect.KClass
 import kotlinx.cinterop.COpaquePointer
@@ -48,11 +36,7 @@ import kotlinx.cinterop.asStableRef
 import kotlinx.cinterop.convert
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
-import kotlinx.cinterop.readBytes
 import kotlinx.cinterop.staticCFunction
-import kotlinx.cinterop.toKStringFromUtf8
-import kotlinx.cinterop.value
-import platform.posix.size_tVar
 
 internal fun jsInterruptHandlerGlobal(runtime: CPointer<JSRuntime>?, opaque: COpaquePointer?): Int{
   val quickJs = opaque!!.asStableRef<QuickJs>().get()
@@ -66,6 +50,7 @@ actual class QuickJs private constructor(
   actual companion object {
     actual fun create(): QuickJs {
       val runtime = JS_NewRuntime() ?: throw OutOfMemoryError()
+      JS_SetMaxStackSize(runtime, 0) //May want to review. fib test was failing because of max stack size
       val context = JS_NewContext(runtime)
       if (context == null) {
         JS_FreeRuntime(runtime)
@@ -172,34 +157,7 @@ actual class QuickJs private constructor(
     throw UnsupportedOperationException()
   }
 
-  actual fun compile(sourceCode: String, fileName: String): ByteArray {
-    val compiled =
-      JS_Eval(context, sourceCode, sourceCode.length.convert(), fileName, JS_EVAL_FLAG_COMPILE_ONLY)
-
-    if (JS_IsException(compiled) != 0) {
-      throwJsException()
-    }
-
-    val result = memScoped {
-      val bufferLengthVar = alloc<size_tVar>()
-      val buffer = JS_WriteObject(context, bufferLengthVar.ptr, compiled,
-        JS_WRITE_OBJ_BYTECODE or JS_WRITE_OBJ_REFERENCE)
-      val bufferLength = bufferLengthVar.value.toInt()
-
-      val result = if (buffer != null && bufferLength > 0) {
-        buffer.readBytes(bufferLength)
-      } else {
-        null
-      }
-
-      JS_FreeValue(context, compiled)
-      js_free(context, buffer)
-
-      result
-    }
-
-    return result ?: throwJsException()
-  }
+  actual fun compile(sourceCode: String, fileName: String): ByteArray = compilePlatform(sourceCode, fileName)
 
   actual fun execute(bytecode: ByteArray): Any? = executePlatform(bytecode)
 
@@ -210,26 +168,13 @@ actual class QuickJs private constructor(
   }
 
   internal fun throwJsException(): Nothing {
-    val exceptionValue = JS_GetException(context)
-
-    val messageValue = JS_GetPropertyStr(context, exceptionValue, "message")
-    val stackValue = JS_GetPropertyStr(context, exceptionValue, "stack")
-
-    val message = JS_ToCString(context,
-      messageValue.takeUnless { JS_IsUndefined(messageValue) != 0 } ?: exceptionValue
-    )?.toKStringFromUtf8() ?: ""
-    JS_FreeValue(context, messageValue)
-
-    val stack = JS_ToCString(context, stackValue)!!.toKStringFromUtf8()
-    JS_FreeValue(context, stackValue)
-    JS_FreeValue(context, exceptionValue)
-
-    // TODO extract cause
-
-    throw QuickJsException(message) // TODO add stack
+    throwJsExceptionPlatform()
   }
 }
 
+//cinterop produces slightly different code for 32 and 64 bit architectures
+internal expect fun QuickJs.throwJsExceptionPlatform(): Nothing
+internal expect fun QuickJs.compilePlatform(sourceCode: String, fileName: String): ByteArray
 internal expect fun QuickJs.executePlatform(bytecode: ByteArray): Any?
 internal expect fun QuickJs.evaluatePlatform(script: String, fileName: String): Any?
 

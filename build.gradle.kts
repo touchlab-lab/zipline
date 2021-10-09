@@ -9,7 +9,6 @@ import org.jetbrains.dokka.gradle.DokkaTask
 
 buildscript {
   repositories {
-    mavenLocal()
     mavenCentral()
     google()
     gradlePluginPortal()
