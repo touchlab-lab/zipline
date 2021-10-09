@@ -1,3 +1,4 @@
+import co.touchlab.cklib.gradle.CompileToBitcode.Language.C
 import com.vanniktech.maven.publish.JavadocJar
 import com.vanniktech.maven.publish.KotlinMultiplatform
 import com.vanniktech.maven.publish.MavenPublishBaseExtension
@@ -130,9 +131,6 @@ kotlin {
       val main by compilations.getting
       main.defaultSourceSet.dependsOn(nativeMain)
 
-      main.kotlinOptions.freeCompilerArgs +=
-          listOf("-native-library", "${project.buildDir.absolutePath}/bitcode/main/${konanTarget.name}/quickjs.bc")
-
       main.cinterops {
         create("quickjs") {
 //          header(file("native/quickjs/quickjs.h"))
@@ -147,12 +145,9 @@ kotlin {
   }
 }
 
-val bitcodeBuildTargets = kotlin.targets.withType<org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget>().map { Pair(it.name, it.konanTarget.name) }
-
-bitcode {
-  create("quickjs", bitcodeBuildTargets.map { it.second }, project.file("native/quickjs"), "main") {
-    language = co.touchlab.cklib.gradle.CompileToBitcode.Language.C
-    includeFiles = listOf("**/*.c")
+cklib {
+  create("quickjs") {
+    language = C
     srcDirs = project.files(file("native/quickjs"))
     compilerArgs.addAll(
       listOf(
@@ -167,12 +162,6 @@ bitcode {
       )
     )
   }
-}
-
-// Have Kotlin compile tasks depend on bitcode compile tasks
-bitcodeBuildTargets.forEach {
-  val targetName = it.first
-  tasks.getByName("compileKotlin${targetName.capitalize()}").dependsOn("${it.second}Quickjs")
 }
 
 android {
