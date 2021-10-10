@@ -20,7 +20,7 @@ buildscript {
     classpath(Dependencies.kotlinGradlePlugin)
     classpath(Dependencies.kotlinSerialization)
     classpath(Dependencies.dokkaGradlePlugin)
-    classpath("co.touchlab:cklib-gradle-plugin:1.5.31.2")
+    classpath(Dependencies.cklibGradlePlugin)
   }
 }
 
